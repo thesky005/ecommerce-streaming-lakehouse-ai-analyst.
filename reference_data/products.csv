@@ -1,0 +1,49 @@
+sku,product_name,category,brand,unit_price,unit_cost,return_risk
+SKU-1001,Wireless Earbuds Pro,Electronics,Sonora,129.00,71.00,0.08
+SKU-1002,Noise Cancelling Headphones,Electronics,Sonora,249.00,148.00,0.07
+SKU-1003,Smart Fitness Watch,Electronics,Pulse,199.00,112.00,0.09
+SKU-1004,Portable Bluetooth Speaker,Electronics,Sonora,79.00,41.00,0.05
+SKU-1005,USB-C Fast Charger 65W,Electronics,Voltix,39.00,16.00,0.03
+SKU-1006,4K Streaming Stick,Electronics,Lumen,49.00,27.00,0.04
+SKU-1007,Mechanical Keyboard,Electronics,Keyforge,109.00,58.00,0.06
+SKU-1008,Wireless Gaming Mouse,Electronics,Keyforge,69.00,33.00,0.05
+SKU-2001,Organic Cotton T-Shirt,Apparel,Northwind,24.00,8.50,0.14
+SKU-2002,Slim Fit Denim Jeans,Apparel,Northwind,69.00,26.00,0.19
+SKU-2003,Waterproof Rain Jacket,Apparel,Peakline,129.00,54.00,0.15
+SKU-2004,Merino Wool Sweater,Apparel,Northwind,89.00,37.00,0.16
+SKU-2005,Running Shorts,Apparel,Stride,34.00,12.00,0.12
+SKU-2006,Leather Ankle Boots,Apparel,Hartley,149.00,66.00,0.21
+SKU-2007,Classic Sneakers,Apparel,Stride,89.00,38.00,0.18
+SKU-2008,Everyday Hoodie,Apparel,Northwind,54.00,20.00,0.13
+SKU-3001,Stainless Steel Cookware Set,Home & Kitchen,Hearth,199.00,98.00,0.06
+SKU-3002,Espresso Machine,Home & Kitchen,Brewcraft,299.00,171.00,0.08
+SKU-3003,Chef's Knife 8in,Home & Kitchen,Hearth,59.00,22.00,0.03
+SKU-3004,Air Fryer XL,Home & Kitchen,Crispo,119.00,63.00,0.07
+SKU-3005,Linen Bedding Set,Home & Kitchen,Restwell,139.00,57.00,0.10
+SKU-3006,Ceramic Dinnerware 16pc,Home & Kitchen,Hearth,89.00,39.00,0.09
+SKU-3007,Robot Vacuum,Home & Kitchen,Tidy,279.00,162.00,0.08
+SKU-3008,Scented Candle Trio,Home & Kitchen,Glow,32.00,11.00,0.04
+SKU-4001,Vitamin C Serum,Beauty,Lumi,38.00,12.00,0.05
+SKU-4002,Hydrating Face Cream,Beauty,Lumi,42.00,14.00,0.05
+SKU-4003,Hair Dryer Ionic,Beauty,Silken,99.00,47.00,0.07
+SKU-4004,Mineral Sunscreen SPF50,Beauty,Solace,24.00,7.50,0.03
+SKU-4005,Perfume Eau de Parfum,Beauty,Maison Vale,89.00,31.00,0.06
+SKU-4006,Electric Toothbrush,Beauty,Brightly,79.00,36.00,0.04
+SKU-4007,Makeup Brush Set,Beauty,Silken,36.00,11.00,0.06
+SKU-4008,Beard Grooming Kit,Beauty,Hartley,45.00,16.00,0.05
+SKU-5001,Yoga Mat Premium,Sports & Outdoors,Stride,59.00,21.00,0.06
+SKU-5002,Adjustable Dumbbells,Sports & Outdoors,Ironclad,249.00,139.00,0.07
+SKU-5003,Camping Tent 2-Person,Sports & Outdoors,Peakline,179.00,88.00,0.09
+SKU-5004,Insulated Water Bottle,Sports & Outdoors,Peakline,29.00,9.00,0.03
+SKU-5005,Cycling Helmet,Sports & Outdoors,Velo,89.00,41.00,0.07
+SKU-5006,Hiking Backpack 35L,Sports & Outdoors,Peakline,119.00,52.00,0.08
+SKU-5007,Resistance Band Set,Sports & Outdoors,Ironclad,25.00,7.00,0.04
+SKU-5008,Trail Running Shoes,Sports & Outdoors,Stride,139.00,61.00,0.17
+SKU-6001,The Data Engineer's Handbook,Books,Inkwell Press,45.00,18.00,0.02
+SKU-6002,Mystery Novel Box Set,Books,Inkwell Press,59.00,24.00,0.02
+SKU-6003,Illustrated Cookbook,Books,Hearth,35.00,13.00,0.03
+SKU-6004,Children's Picture Book,Books,Little Owl,16.00,5.50,0.02
+SKU-6005,Productivity Planner 2026,Books,Inkwell Press,28.00,9.00,0.03
+SKU-6006,World Atlas Hardcover,Books,Compass,49.00,21.00,0.02
+SKU-6007,Science Fiction Paperback,Books,Inkwell Press,18.00,6.00,0.02
+SKU-6008,Graphic Novel Collection,Books,Little Owl,39.00,15.00,0.03

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northstar Insights</title>
+<meta name="description" content="Northstar Insights: the decision dashboard for Northstar Commerce, built on a Kafka, Spark, Delta Lake and Airflow lakehouse.">
+<style>/*{{CSS}}*/</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">N</div>
+      <div><div class="brand-name">Northstar Insights</div><div class="brand-sub">Commerce intelligence</div></div>
+    </div>
+    <nav aria-label="Dashboards">
+      <div class="nav-label">Business</div>
+      <a href="#overview" data-view="overview">Executive overview</a>
+      <a href="#sales" data-view="sales">Sales</a>
+      <a href="#marketing" data-view="marketing">Marketing</a>
+      <a href="#operations" data-view="operations">Operations</a>
+      <a href="#finance" data-view="finance">Finance</a>
+      <a href="#service" data-view="service">Customer service</a>
+      <div class="nav-label">Platform</div>
+      <a href="#platform" data-view="platform">Architecture &amp; orchestration</a>
+    </nav>
+    <div class="sidebar-foot" id="pipeline-status"></div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="crumb" id="crumb">Executive overview</div>
+        <h1 id="view-title">Executive overview</h1>
+      </div>
+      <div class="controls">
+        <div class="segmented" role="group" aria-label="Reporting period" id="period">
+          <button data-days="7">7D</button><button data-days="14">14D</button><button data-days="30">30D</button>
+        </div>
+        <div class="asof" id="asof"></div>
+      </div>
+    </header>
+
+    <main id="views">
+      <section class="view" id="view-overview"></section>
+      <section class="view" id="view-sales"></section>
+      <section class="view" id="view-marketing"></section>
+      <section class="view" id="view-operations"></section>
+      <section class="view" id="view-finance"></section>
+      <section class="view" id="view-service"></section>
+      <section class="view" id="view-platform">
+        <div class="panel">
+          <div class="panel-head"><div><h2>Architecture</h2>
+            <p>Events stream through Kafka into a Delta Lake Bronze layer. Spark jobs scheduled by Airflow build
+            Silver and Gold every ten minutes, processing only data that arrived since the previous run.</p></div></div>
+          <div class="diagram"><!--{{ARCHITECTURE}}--></div>
+          <div class="tech">
+            <span>Apache Kafka 3.9</span><span>Spark 3.5 Structured Streaming</span><span>Delta Lake 3.2</span>
+            <span>Apache Airflow 2.10</span><span>PySpark</span><span>Docker Compose</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Orchestration</h2>
+            <p><code>lakehouse_medallion</code> runs every 10 minutes. A sensor waits for Bronze, Silver entities load
+            in parallel, a data-quality gate blocks bad data, then the core model and six department marts are built.
+            Every Spark task shares a 3-slot pool on the cluster; a nightly DAG runs <code>OPTIMIZE</code> and
+            <code>VACUUM</code>.</p></div></div>
+          <div class="diagram"><!--{{DAG}}--></div>
+          <div class="stat-strip" id="platform-strip"></div>
+        </div>
+      </section>
+    </main>
+    <footer class="foot" id="foot"></footer>
+  </div>
+</div>
+<script>/*{{PLOTLY}}*/</script>
+<script>/*{{DATA}}*/</script>
+<script>/*{{APP}}*/</script>
+</body>
+</html>

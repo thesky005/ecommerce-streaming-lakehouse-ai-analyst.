@@ -1,20 +1,261 @@
+name: ecommerce-lakehouse
+
+# Shared settings -------------------------------------------------------------
+x-lake-env: &lake-env
+  LAKE_ROOT: /opt/lake
+  REFERENCE_DIR: /opt/project/reference_data
+  KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  SPARK_SHUFFLE_PARTITIONS: "8"
+
+x-project-mounts: &project-mounts
+  - ../lakehouse:/opt/project/lakehouse:ro
+  - ../reference_data:/opt/project/reference_data:ro
+  - ../lake:/opt/lake
+
+x-spark: &spark
+  build:
+    context: ..
+    dockerfile: docker/spark/Dockerfile
+  image: ecommerce-lakehouse-spark:local
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment:
+    <<: *lake-env
+  volumes: *project-mounts
+  restart: unless-stopped
+
+x-airflow: &airflow
+  build:
+    context: ..
+    dockerfile: docker/airflow/Dockerfile
+  image: ecommerce-lakehouse-airflow:local
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: &airflow-env
+    <<: *lake-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__PARALLELISM: "8"
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-local-development-only}
+    PROJECT_DIR: /opt/project
+    SPARK_MASTER_URL: spark://spark-master:7077
+    SPARK_DRIVER_HOST: airflow-scheduler
+    FRESHNESS_MINUTES: "30"
+  volumes:
+    - ../airflow/dags:/opt/airflow/dags:ro
+    - ../lakehouse:/opt/project/lakehouse:ro
+    - ../reference_data:/opt/project/reference_data:ro
+    - ../lake:/opt/lake
+    - airflow_logs:/opt/airflow/logs
+  depends_on: &airflow-depends
+    postgres:
+      condition: service_healthy
+
 services:
+  # Streaming backbone ---------------------------------------------------------
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka-broker
+    image: ${KAFKA_IMAGE:-apache/kafka:3.9.0}
+    hostname: kafka
+    restart: unless-stopped
     ports:
-      - "9092:9092"
+      - "127.0.0.1:${KAFKA_HOST_PORT:-9092}:9092"
     environment:
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:29093'
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://127.0.0.1:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,HOST://127.0.0.1:${KAFKA_HOST_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  kafka-init:
+    image: ${KAFKA_IMAGE:-apache/kafka:3.9.0}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for topic in orders order_events customers; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+            --topic "$$topic" --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe
+    restart: "no"
+
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${KAFKA_UI_PORT:-8082}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ecommerce
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    restart: unless-stopped
+
+  event-generator:
+    build:
+      context: ..
+      dockerfile: docker/generator/Dockerfile
+    image: ecommerce-lakehouse-generator:local
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      GENERATOR_SINK: kafka
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GENERATOR_LIVE: "true"
+      BACKFILL_DAYS: ${BACKFILL_DAYS:-30}
+      LIVE_RATE_MULTIPLIER: ${LIVE_RATE_MULTIPLIER:-30}
+      GENERATOR_STATE_FILE: /state/generator.json
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - generator_state:/state
+    restart: unless-stopped
+
+  # Spark ------------------------------------------------------------------------
+  spark-master:
+    <<: *spark
+    hostname: spark-master
+    command: spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080
+    ports:
+      - "127.0.0.1:${SPARK_MASTER_UI_PORT:-8090}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  spark-worker:
+    <<: *spark
+    hostname: spark-worker
+    command: >
+      spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+      --cores ${SPARK_WORKER_CORES:-4} --memory ${SPARK_WORKER_MEMORY:-4g}
+      --webui-port 8081 --work-dir /tmp/spark-work
+    ports:
+      - "127.0.0.1:${SPARK_WORKER_UI_PORT:-8091}:8081"
+    depends_on:
+      spark-master:
+        condition: service_healthy
+
+  # Bronze: an always-on Structured Streaming job from Kafka into Delta.
+  spark-streaming:
+    <<: *spark
+    hostname: spark-streaming
+    command: >
+      spark-submit --master local[2] --driver-memory 1g --name bronze_streaming
+      /opt/project/lakehouse/run.py bronze --source kafka
+    ports:
+      - "127.0.0.1:${SPARK_STREAMING_UI_PORT:-4040}:4040"
+    environment:
+      <<: *lake-env
+      BRONZE_TRIGGER_INTERVAL: ${BRONZE_TRIGGER_INTERVAL:-20 seconds}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      airflow-init:
+        condition: service_completed_successfully
+
+  # Airflow: orchestrates Silver, the quality gate and Gold on the Spark cluster ----
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow
+    user: "0:0"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        mkdir -p /opt/lake /opt/airflow/logs
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/lake /opt/airflow/logs
+        /entrypoint airflow version
+        /entrypoint airflow pools set spark 3 "Concurrent Spark applications on the cluster"
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow
+    command: webserver
+    ports:
+      - "127.0.0.1:${AIRFLOW_HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow
+    hostname: airflow-scheduler
+    command: scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+      spark-worker:
+        condition: service_started
+    restart: unless-stopped
+
+  # Department report --------------------------------------------------------------
+  report:
+    build:
+      context: ..
+      dockerfile: docker/report/Dockerfile
+    image: ecommerce-lakehouse-report:local
+    environment:
+      LAKE_ROOT: /opt/lake
+    volumes:
+      - ../lake:/opt/lake:ro
+    ports:
+      - "127.0.0.1:${REPORT_PORT:-8501}:8501"
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  postgres_data:
+  airflow_logs:
+  generator_state:

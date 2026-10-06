@@ -1,23 +1,19 @@
 # Python
-_pycache_/
+__pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
 .venv/
+.pytest_cache/
 
-# IDE & Editors
+# Local toolchain (scripts/setup_local.ps1) and data lake
+.tools/
+lake/
+
+# IDE & OS
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS specific
 .DS_Store
 Thumbs.db
 
-# Docker
+# Local settings
+.env
 *.log
