@@ -1,6 +1,6 @@
 """Single entry point for every Spark job (used by spark-submit, Airflow and local runs).
 
-    spark-submit lakehouse/run.py bronze --source kafka
+    spark-submit lakehouse/run.py bronze
     spark-submit lakehouse/run.py silver --entity orders
     spark-submit lakehouse/run.py quality
     spark-submit lakehouse/run.py gold --target sales
@@ -20,8 +20,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     jobs = parser.add_subparsers(dest="job", required=True)
 
-    bronze = jobs.add_parser("bronze", help="stream raw events into Bronze Delta tables")
-    bronze.add_argument("--source", choices=["kafka", "files"], default="kafka")
+    bronze = jobs.add_parser("bronze", help="stream raw events from the landing zone into Bronze Delta tables")
     bronze.add_argument("--once", action="store_true", help="process what is available, then stop")
 
     silver_job = jobs.add_parser("silver", help="validate, deduplicate and merge Bronze into Silver")
@@ -41,7 +40,7 @@ def main(argv: list[str] | None = None) -> None:
     spark = build_spark(f"lakehouse_{name}")
     try:
         if args.job == "bronze":
-            bronze_stream.run(spark, args.source, args.once)
+            bronze_stream.run(spark, args.once)
         elif args.job == "silver":
             silver.run(spark, args.entity)
         elif args.job == "quality":

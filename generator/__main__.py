@@ -1,8 +1,8 @@
-"""Storefront event generator.
+"""Storefront event generator: writes simulated store events into the landing zone.
 
 Examples:
-    python -m generator --sink kafka --bootstrap-servers kafka:29092 --live
-    python -m generator --sink files --landing-dir lake/landing --backfill-days 30 --no-live
+    python -m generator --backfill-days 30 --no-live     # replay 30 days of history, then stop
+    python -m generator --live                           # replay history, then keep producing live events
 """
 import argparse
 import json
@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from generator.catalog import PROJECT_ROOT, load_products
-from generator.sinks import FileSink, KafkaSink
+from generator.sinks import FileSink
 from generator.simulator import StorefrontSimulator
 
 
@@ -23,8 +23,6 @@ def env_bool(name: str, default: bool) -> bool:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--sink", choices=["kafka", "files"], default=os.getenv("GENERATOR_SINK", "kafka"))
-    parser.add_argument("--bootstrap-servers", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"))
     parser.add_argument("--landing-dir", default=os.getenv("LANDING_DIR", str(PROJECT_ROOT / "lake" / "landing")))
     parser.add_argument("--backfill-days", type=float, default=float(os.getenv("BACKFILL_DAYS", "30")))
     parser.add_argument("--live", action=argparse.BooleanOptionalAction, default=env_bool("GENERATOR_LIVE", True),
@@ -52,12 +50,8 @@ def main() -> None:
         simulator.seed_customers()
         print(f"Starting simulation at {start.isoformat()} ({args.backfill_days:g} days of backfill)")
 
-    if args.sink == "kafka":
-        sink = KafkaSink(args.bootstrap_servers)
-        print(f"Publishing to Kafka at {args.bootstrap_servers}")
-    else:
-        sink = FileSink(args.landing_dir)
-        print(f"Writing JSON files to {args.landing_dir}")
+    sink = FileSink(args.landing_dir)
+    print(f"Writing events to the landing zone at {args.landing_dir}")
 
     def save_state() -> None:
         if state_path:

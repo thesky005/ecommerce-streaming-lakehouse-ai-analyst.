@@ -1,5 +1,3 @@
--r generator.txt
 -r spark.txt
--r report.txt
 -r ai.txt
 pytest>=8,<9

@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-from generator.catalog import TOPIC_CUSTOMERS, TOPIC_ORDER_EVENTS, TOPIC_ORDERS, load_products
+from generator.catalog import STREAM_CUSTOMERS, STREAM_ORDER_EVENTS, STREAM_ORDERS, load_products
 from generator.simulator import StorefrontSimulator
 
 
@@ -9,8 +9,8 @@ class MemorySink:
     def __init__(self):
         self.records: list[tuple[str, str, str]] = []
 
-    def send(self, topic, key, value):
-        self.records.append((topic, key, value))
+    def send(self, stream, key, value):
+        self.records.append((stream, key, value))
 
     def flush(self):
         pass
@@ -27,10 +27,10 @@ def simulate(days: float = 3, seed: int = 7, **kwargs) -> tuple[StorefrontSimula
     return simulator, sink
 
 
-def parsed(sink: MemorySink, topic: str) -> list[dict]:
+def parsed(sink: MemorySink, stream: str) -> list[dict]:
     rows = []
-    for record_topic, _, value in sink.records:
-        if record_topic == topic:
+    for record_stream, _, value in sink.records:
+        if record_stream == stream:
             try:
                 rows.append(json.loads(value))
             except json.JSONDecodeError:
@@ -46,8 +46,8 @@ def test_same_seed_produces_identical_stream():
 
 def test_clean_stream_has_consistent_orders_and_lifecycle():
     _, sink = simulate(duplicate_rate=0, bad_record_rate=0)
-    orders = {o["order_id"]: o for o in parsed(sink, TOPIC_ORDERS)}
-    events = parsed(sink, TOPIC_ORDER_EVENTS)
+    orders = {o["order_id"]: o for o in parsed(sink, STREAM_ORDERS)}
+    events = parsed(sink, STREAM_ORDER_EVENTS)
     assert len(orders) > 100
     for event in events:
         order = orders[event["order_id"]]
@@ -61,8 +61,8 @@ def test_clean_stream_has_consistent_orders_and_lifecycle():
 
 def test_every_ordering_customer_is_registered_first():
     _, sink = simulate(duplicate_rate=0, bad_record_rate=0)
-    registered = {c["customer_id"] for c in parsed(sink, TOPIC_CUSTOMERS) if c["event_type"] == "customer_registered"}
-    assert {o["customer_id"] for o in parsed(sink, TOPIC_ORDERS)} <= registered
+    registered = {c["customer_id"] for c in parsed(sink, STREAM_CUSTOMERS) if c["event_type"] == "customer_registered"}
+    assert {o["customer_id"] for o in parsed(sink, STREAM_ORDERS)} <= registered
 
 
 def test_dirty_data_is_injected_at_roughly_the_configured_rates():

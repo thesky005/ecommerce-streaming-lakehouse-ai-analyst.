@@ -363,7 +363,7 @@ def build_customer_service(spark: SparkSession) -> None:
 
 
 def build_platform(spark: SparkSession) -> None:
-    tables = [("bronze", t, config.bronze(t)) for t in config.TOPICS]
+    tables = [("bronze", t, config.bronze(t)) for t in config.STREAMS]
     tables += [("silver", t, config.silver(t)) for t in
                ("orders", "order_items", "order_events", "customers", "products", "quarantine")]
     tables += [("gold", t, config.gold(t)) for t in
@@ -380,16 +380,14 @@ def build_platform(spark: SparkSession) -> None:
 
     quarantine_path = config.silver("quarantine")
     if DeltaTable.isDeltaTable(spark, quarantine_path):
-        _write(spark.read.format("delta").load(quarantine_path).groupBy("source_topic", "rejection_reason").agg(
+        _write(spark.read.format("delta").load(quarantine_path).groupBy("source_stream", "rejection_reason").agg(
             F.count("*").alias("records"), F.max("quarantined_at").alias("last_seen")), "mart_quarantine_summary")
 
     hourly = None
-    for topic in config.TOPICS:
-        df = spark.read.format("delta").load(config.bronze(topic)).groupBy(
-            F.lit(topic).alias("topic"), F.date_trunc("hour", "ingested_at").alias("hour")).agg(
-            F.count("*").alias("records"),
-            F.round(F.avg(F.unix_timestamp("ingested_at") - F.unix_timestamp("kafka_timestamp")), 2)
-            .alias("avg_ingest_latency_seconds"))
+    for stream in config.STREAMS:
+        df = spark.read.format("delta").load(config.bronze(stream)).groupBy(
+            F.lit(stream).alias("stream"), F.date_trunc("hour", "ingested_at").alias("hour")).agg(
+            F.count("*").alias("records"))
         hourly = df if hourly is None else hourly.unionByName(df)
     _write(hourly, "mart_ingestion_hourly")
 

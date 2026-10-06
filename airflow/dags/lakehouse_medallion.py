@@ -1,7 +1,7 @@
 """
 ### Lakehouse medallion pipeline
 
-Bronze is filled continuously by the `spark-streaming` service (Kafka → Delta). Every ten
+Bronze is filled continuously by the `spark-streaming` service (landing zone → Delta). Every ten
 minutes this DAG turns the new Bronze data into curated tables on the Spark cluster:
 
 1. **wait_for_bronze**: sensor that waits until the streaming job has created Bronze.
@@ -48,8 +48,8 @@ def spark_job(task_id: str, arguments: str, cores: int = 1, **kwargs) -> BashOpe
 
 
 def bronze_ready() -> bool:
-    return all((LAKE_ROOT / "bronze" / topic / "_delta_log").exists()
-               for topic in ("orders", "order_events", "customers"))
+    return all((LAKE_ROOT / "bronze" / stream / "_delta_log").exists()
+               for stream in ("orders", "order_events", "customers"))
 
 
 with DAG(

@@ -5,7 +5,6 @@ from pyspark.sql.types import (
     BooleanType,
     DoubleType,
     IntegerType,
-    LongType,
     StringType,
     StructField,
     StructType,
@@ -84,14 +83,10 @@ ORDER_EVENT_TYPES = (
 )
 CUSTOMER_EVENT_TYPES = ("customer_registered", "customer_updated")
 
-# Columns every Bronze table carries, whatever the source.
+# Columns every Bronze table carries.
 BRONZE = StructType([
-    StructField("event_key", StringType()),
     StructField("payload", StringType()),
-    StructField("topic", StringType()),
-    StructField("kafka_partition", IntegerType()),
-    StructField("kafka_offset", LongType()),
-    StructField("kafka_timestamp", TimestampType()),
+    StructField("stream", StringType()),
     StructField("source_file", StringType()),
     StructField("ingested_at", TimestampType()),
 ])

@@ -28,7 +28,7 @@ WEEKDAY_PROFILE = [0.95, 0.9, 0.92, 0.97, 1.08, 1.2, 1.15]
 
 
 class Sink(Protocol):
-    def send(self, topic: str, key: str, value: str) -> None: ...
+    def send(self, stream: str, key: str, value: str) -> None: ...
     def flush(self) -> None: ...
 
 
@@ -91,9 +91,9 @@ class StorefrontSimulator:
         weights = [value[0] if isinstance(value, tuple) else value for value in mapping.values()]
         return self.rng.choices(keys, weights=weights)[0]
 
-    def _schedule(self, due: datetime, topic: str, key: str, payload: dict) -> None:
+    def _schedule(self, due: datetime, stream: str, key: str, payload: dict) -> None:
         self._seq += 1
-        heapq.heappush(self.pending, (due, self._seq, topic, key, payload))
+        heapq.heappush(self.pending, (due, self._seq, stream, key, payload))
 
     def _campaign_flags(self, ts: datetime) -> tuple[bool, bool]:
         weekend_sale = ts.weekday() >= 4  # Friday to Sunday email promotion
@@ -147,7 +147,7 @@ class StorefrontSimulator:
             signup = self.clock - timedelta(days=self.rng.uniform(31, 540))
             spend = round(self.rng.lognormvariate(5.3, 1.0), 2)
             customer = self._new_customer(signup, self._pick(C.TRAFFIC_SOURCES), spend, self.rng.randint(1, 12))
-            self._schedule(self.clock, C.TOPIC_CUSTOMERS, customer.customer_id,
+            self._schedule(self.clock, C.STREAM_CUSTOMERS, customer.customer_id,
                            self._customer_event("customer_registered", signup, customer))
 
     # ------------------------------------------------------------------- orders
@@ -167,7 +167,7 @@ class StorefrontSimulator:
             "rating": None,
         }
         payload.update(attributes)
-        self._schedule(ts, C.TOPIC_ORDER_EVENTS, order_id, payload)
+        self._schedule(ts, C.STREAM_ORDER_EVENTS, order_id, payload)
 
     def _place_order(self, ts: datetime, sink: Sink) -> None:
         rng = self.rng
@@ -177,7 +177,7 @@ class StorefrontSimulator:
         if not self.customers or rng.random() < (0.4 if influencer_burst else 0.28):
             source = self._pick(C.TRAFFIC_SOURCES)
             customer = self._new_customer(ts - timedelta(minutes=rng.uniform(2, 30)), source)
-            self._emit(sink, C.TOPIC_CUSTOMERS, customer.customer_id,
+            self._emit(sink, C.STREAM_CUSTOMERS, customer.customer_id,
                        self._customer_event("customer_registered", parse_iso(customer.signup_time), customer))
             is_new = True
         else:
@@ -187,7 +187,7 @@ class StorefrontSimulator:
             is_new = False
             if rng.random() < 0.012:  # customer moved: a slowly changing attribute for SCD2
                 customer.city = rng.choices(list(C.CITIES), weights=C.CITY_WEIGHTS)[0]
-                self._emit(sink, C.TOPIC_CUSTOMERS, customer.customer_id,
+                self._emit(sink, C.STREAM_CUSTOMERS, customer.customer_id,
                            self._customer_event("customer_updated", ts - timedelta(minutes=5), customer))
         if source == "email" and not customer.marketing_opt_in:
             source = "direct"
@@ -256,7 +256,7 @@ class StorefrontSimulator:
             "ship_to": {"city": customer.city, "region": region, "country": "US"},
             "items": items,
         }
-        self._emit(sink, C.TOPIC_ORDERS, order_id, order)
+        self._emit(sink, C.STREAM_ORDERS, order_id, order)
         self.stats["orders_placed"] += 1
 
         customer.orders += 1
@@ -264,7 +264,7 @@ class StorefrontSimulator:
         new_tier = tier_for_spend(customer.lifetime_spend)
         if new_tier != customer.loyalty_tier:
             customer.loyalty_tier = new_tier
-            self._schedule(ts + timedelta(minutes=1), C.TOPIC_CUSTOMERS, customer.customer_id,
+            self._schedule(ts + timedelta(minutes=1), C.STREAM_CUSTOMERS, customer.customer_id,
                            self._customer_event("customer_updated", ts + timedelta(minutes=1), customer))
 
         self._schedule_lifecycle(order, ts, merchandise + shipping_fee, fallback)
@@ -337,12 +337,12 @@ class StorefrontSimulator:
                               order_id, rating=rating, sku=order["items"][0]["sku"])
 
     # ----------------------------------------------------------------- emission
-    def _corrupt(self, topic: str, payload: dict) -> str:
+    def _corrupt(self, stream: str, payload: dict) -> str:
         broken = json.loads(json.dumps(payload))
         options = ["truncated_json", "bad_timestamp"]
-        if topic == C.TOPIC_ORDERS:
+        if stream == C.STREAM_ORDERS:
             options += ["missing_customer_id", "negative_quantity", "unknown_sku"]
-        elif topic == C.TOPIC_ORDER_EVENTS:
+        elif stream == C.STREAM_ORDER_EVENTS:
             options += ["unknown_event_type", "missing_order_id"]
         else:
             options += ["missing_customer_id"]
@@ -365,15 +365,15 @@ class StorefrontSimulator:
             broken.pop("order_id", None)
         return json.dumps(broken, separators=(",", ":"))
 
-    def _emit(self, sink: Sink, topic: str, key: str, payload: dict) -> None:
+    def _emit(self, sink: Sink, stream: str, key: str, payload: dict) -> None:
         if self.rng.random() < self.bad_record_rate:
-            value = self._corrupt(topic, payload)
+            value = self._corrupt(stream, payload)
         else:
             value = json.dumps(payload, separators=(",", ":"))
-        sink.send(topic, key, value)
-        self.stats[f"events_{topic}"] += 1
+        sink.send(stream, key, value)
+        self.stats[f"events_{stream}"] += 1
         if self.rng.random() < self.duplicate_rate:  # at-least-once delivery: same event twice
-            sink.send(topic, key, value)
+            sink.send(stream, key, value)
             self.stats["duplicates"] += 1
 
     # ---------------------------------------------------------------------- run
@@ -400,9 +400,9 @@ class StorefrontSimulator:
                     break
                 time.sleep(min((next_time - real_now).total_seconds(), 1.0))
             elif due_event is not None and due_event <= self._next_order:
-                due, _, topic, key, payload = heapq.heappop(self.pending)
+                due, _, stream, key, payload = heapq.heappop(self.pending)
                 self.clock = max(self.clock, due)
-                self._emit(sink, topic, key, payload)
+                self._emit(sink, stream, key, payload)
             else:
                 self.clock = self._next_order
                 self._place_order(self.clock, sink)
@@ -431,7 +431,7 @@ class StorefrontSimulator:
             "customer_counter": self._customer_counter,
             "rng": [version, list(internal), gauss],
             "customers": [asdict(c) for c in self.customers.values()],
-            "pending": [[due.isoformat(), seq, topic, key, payload] for due, seq, topic, key, payload in self.pending],
+            "pending": [[due.isoformat(), seq, stream, key, payload] for due, seq, stream, key, payload in self.pending],
         }
 
     @classmethod
@@ -444,7 +444,7 @@ class StorefrontSimulator:
         simulator._customer_counter = state["customer_counter"]
         simulator._next_order = parse_iso(state["next_order"]) if state["next_order"] else None
         simulator.customers = {c["customer_id"]: Customer(**c) for c in state["customers"]}
-        simulator.pending = [(parse_iso(due), seq, topic, key, payload)
-                             for due, seq, topic, key, payload in state["pending"]]
+        simulator.pending = [(parse_iso(due), seq, stream, key, payload)
+                             for due, seq, stream, key, payload in state["pending"]]
         heapq.heapify(simulator.pending)
         return simulator

@@ -1,5 +1,5 @@
-# Spark 3.5 (via PySpark) + Delta Lake 3.2 + Kafka connector, used for the standalone
-# cluster (master/worker) and the Bronze streaming job.
+# Spark 3.5 (via PySpark) + Delta Lake 3.2, used for the standalone cluster (master/worker)
+# and the Bronze streaming job.
 FROM python:3.11-slim-bookworm
 
 RUN apt-get update \

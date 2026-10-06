@@ -1,12 +1,13 @@
-"""Run the whole medallion pipeline locally without Docker, Kafka or Airflow.
+"""Run the whole medallion pipeline locally, without Docker or Airflow.
 
-The generator writes events to a file landing zone instead of Kafka; Bronze reads it with
-the same Structured Streaming job (file source, availableNow trigger); then Silver, the
-quality gate and Gold run in order, exactly as the Airflow DAG would.
+The generator writes new events into the landing zone; the Bronze Structured Streaming job
+ingests them (availableNow trigger: process what arrived, then stop); then Silver, the
+quality gate and Gold run in order, exactly as the Airflow DAG does.
 
     python scripts/run_local.py --fresh --days 30   # rebuild everything from scratch
     python scripts/run_local.py                      # add events since the last run, refresh
-    streamlit run report/Home.py                     # open the department report
+    python scripts/build_showcase.py                 # rebuild the dashboard
+    python -m ai.server                              # dashboard + AI analyst at http://localhost:8000
 """
 import argparse
 import json
@@ -46,7 +47,7 @@ def main() -> None:
 
     started = step("1/5 Generate events into the landing zone")
     subprocess.run(
-        [sys.executable, "-m", "generator", "--sink", "files", "--no-live",
+        [sys.executable, "-m", "generator", "--no-live",
          "--landing-dir", str(config.LAKE_ROOT / "landing"),
          "--state-file", str(config.LAKE_ROOT / "_generator_state.json"),
          "--backfill-days", str(args.days)],
@@ -59,7 +60,7 @@ def main() -> None:
     timed("Spark startup", t)
     try:
         t = step("2/5 Bronze: Structured Streaming ingest (availableNow)")
-        bronze_stream.run(spark, "files", once=True)
+        bronze_stream.run(spark, once=True)
         timed("Bronze", t)
         t = step("3/5 Silver: validate, quarantine, deduplicate, MERGE, SCD2")
         silver.run(spark, "all")
@@ -78,7 +79,7 @@ def main() -> None:
                "total_seconds": round(total, 1), "steps": TIMINGS}
     (config.LAKE_ROOT / "_last_run.json").write_text(json.dumps(summary, indent=2))
     print(f"\nPipeline finished in {total:.0f}s. Lake: {config.LAKE_ROOT}")
-    print("Open the report with:  .venv\\Scripts\\streamlit run report\\Home.py")
+    print("Next: python scripts/build_showcase.py, then python -m ai.server and open http://localhost:8000")
 
 
 if __name__ == "__main__":

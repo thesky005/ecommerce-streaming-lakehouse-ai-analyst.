@@ -91,13 +91,11 @@ def _merge_insert_only(spark: SparkSession, df: DataFrame, path: str, keys: list
     target.alias("t").merge(df.alias("s"), condition).whenNotMatchedInsertAll().execute()
 
 
-def _quarantine(validated: DataFrame, topic: str, batch_id: int) -> int:
+def _quarantine(validated: DataFrame, stream: str, batch_id: int) -> int:
     rejected = validated.where(F.col("rejection_reason").isNotNull()).select(
-        F.lit(topic).alias("source_topic"),
+        F.lit(stream).alias("source_stream"),
         F.col("rejection_reason"),
         F.col("payload"),
-        F.col("kafka_partition"),
-        F.col("kafka_offset"),
         F.col("source_file"),
         F.col("ingested_at"),
         F.current_timestamp().alias("quarantined_at"),
@@ -106,8 +104,8 @@ def _quarantine(validated: DataFrame, topic: str, batch_id: int) -> int:
     if count:
         # Blind appends never conflict, so the three Silver jobs can share this table even when
         # Airflow runs them in parallel. txnAppId/txnVersion make a retried batch a no-op.
-        (rejected.write.format("delta").mode("append").partitionBy("source_topic")
-         .option("txnAppId", f"silver_quarantine_{topic}").option("txnVersion", batch_id)
+        (rejected.write.format("delta").mode("append").partitionBy("source_stream")
+         .option("txnAppId", f"silver_quarantine_{stream}").option("txnVersion", batch_id)
          .save(config.silver("quarantine")))
     return count
 
@@ -246,6 +244,7 @@ def process_customers_batch(batch: DataFrame, batch_id: int) -> None:
         "close_at", F.lit(None).cast("timestamp"))
     staged = inserts.unionByName(closes, allowMissingColumns=True)
 
+    versions = new_versions.count()  # count before the MERGE, which changes what this lazy plan reads
     columns = [c for c in empty.columns]
     (
         target.alias("t")
@@ -254,7 +253,7 @@ def process_customers_batch(batch: DataFrame, batch_id: int) -> None:
         .whenNotMatchedInsert(condition="s.merge_key IS NULL", values={c: f"s.{c}" for c in columns})
         .execute()
     )
-    print(f"silver.customers batch {batch_id}: {new_versions.count()} new versions, {rejected} quarantined")
+    print(f"silver.customers batch {batch_id}: {versions} new versions, {rejected} quarantined")
     new_versions.unpersist()
     validated.unpersist()
 
@@ -270,11 +269,11 @@ def load_products(spark: SparkSession) -> None:
     print(f"silver.products: {products.count()} products loaded")
 
 
-def _run_incremental(spark: SparkSession, topic: str, handler) -> None:
+def _run_incremental(spark: SparkSession, stream: str, handler) -> None:
     query = (
-        spark.readStream.format("delta").load(config.bronze(topic))
+        spark.readStream.format("delta").load(config.bronze(stream))
         .writeStream.foreachBatch(handler)
-        .option("checkpointLocation", config.checkpoint_path(f"silver_{topic}"))
+        .option("checkpointLocation", config.checkpoint_path(f"silver_{stream}"))
         .trigger(availableNow=True)
         .start()
     )

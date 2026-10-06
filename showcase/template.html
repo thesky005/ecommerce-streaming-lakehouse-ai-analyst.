@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Northstar Insights</title>
-<meta name="description" content="Northstar Insights: the decision dashboard for Northstar Commerce, built on a Kafka, Spark, Delta Lake and Airflow lakehouse.">
+<meta name="description" content="Northstar Insights: the decision dashboard for Northstar Commerce, built on a Spark Structured Streaming, Delta Lake and Airflow lakehouse.">
 <style>/*{{CSS}}*/</style>
 </head>
 <body>
@@ -52,12 +52,12 @@
       <section class="view" id="view-platform">
         <div class="panel">
           <div class="panel-head"><div><h2>Architecture</h2>
-            <p>Events stream through Kafka into a Delta Lake Bronze layer. Spark jobs scheduled by Airflow build
+            <p>An event generator writes store events into a landing zone; Spark Structured Streaming ingests them into a Delta Lake Bronze layer. Spark jobs scheduled by Airflow build
             Silver and Gold every ten minutes, processing only data that arrived since the previous run.</p></div></div>
           <div class="diagram"><!--{{ARCHITECTURE}}--></div>
           <div class="tech">
-            <span>Apache Kafka 3.9</span><span>Spark 3.5 Structured Streaming</span><span>Delta Lake 3.2</span>
-            <span>Apache Airflow 2.10</span><span>PySpark</span><span>Docker Compose</span>
+            <span>Spark 3.5 Structured Streaming</span><span>Delta Lake 3.2</span>
+            <span>Apache Airflow 2.10</span><span>PySpark</span><span>DuckDB</span><span>LLM agent</span><span>Docker Compose</span>
           </div>
         </div>
         <div class="panel">

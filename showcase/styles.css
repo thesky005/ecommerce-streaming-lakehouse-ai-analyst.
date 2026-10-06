@@ -98,7 +98,7 @@ tbody tr:hover { background: var(--surface-2); }
 .diagram svg .edge, .diagram svg path.edge { fill: none; stroke: #898781; stroke-width: 1.6; marker-end: url(#arrow); }
 .diagram svg .dashed { stroke-dasharray: 5 4; }
 .diagram svg .node rect { fill: #fcfcfb; stroke: #c3c2b7; stroke-width: 1.2; }
-.diagram svg .node.kafka rect { fill: #e8f0fb; } .diagram svg .node.spark rect { fill: #fdeee6; } .diagram svg .node.bronze rect { fill: #f6e7da; }
+.diagram svg .node.landing rect { fill: #e8f0fb; } .diagram svg .node.spark rect { fill: #fdeee6; } .diagram svg .node.bronze rect { fill: #f6e7da; }
 .diagram svg .node.silver rect { fill: #eef0f2; } .diagram svg .node.gold rect { fill: #fdf5d8; } .diagram svg .node.quarantine rect { fill: #fbe3e3; }
 .diagram svg .node.gate rect, .diagram svg .task.gate rect { fill: #fdf1d6; } .diagram svg .node.report rect { fill: #e7f5e7; }
 .diagram svg text { font: 600 13px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #0b0b0b; text-anchor: middle; }

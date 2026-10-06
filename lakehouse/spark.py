@@ -5,7 +5,6 @@ import sys
 from lakehouse.config import PROJECT_ROOT
 
 SPARK_VERSION = "3.5.3"
-KAFKA_PACKAGE = f"org.apache.spark:spark-sql-kafka-0-10_2.12:{SPARK_VERSION}"
 
 
 def _use_local_tools() -> None:
@@ -45,11 +44,11 @@ def build_spark(app_name: str):
             .config("spark.driver.extraJavaOptions", f"-Dlog4j2.configurationFile={log_config}")
         )
     if os.getenv("LAKEHOUSE_JARS_BAKED") == "1":
-        # Docker images ship the Delta and Kafka jars inside Spark's jars directory.
+        # Docker images ship the Delta Lake jars inside Spark's jars directory.
         spark = builder.getOrCreate()
     else:
         from delta import configure_spark_with_delta_pip
 
-        spark = configure_spark_with_delta_pip(builder, extra_packages=[KAFKA_PACKAGE]).getOrCreate()
+        spark = configure_spark_with_delta_pip(builder).getOrCreate()
     spark.sparkContext.setLogLevel(os.getenv("SPARK_LOG_LEVEL", "WARN"))
     return spark

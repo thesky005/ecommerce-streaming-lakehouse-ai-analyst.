@@ -6,10 +6,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PRODUCTS_CSV = PROJECT_ROOT / "reference_data" / "products.csv"
 
-TOPIC_ORDERS = "orders"
-TOPIC_ORDER_EVENTS = "order_events"
-TOPIC_CUSTOMERS = "customers"
-TOPICS = (TOPIC_ORDERS, TOPIC_ORDER_EVENTS, TOPIC_CUSTOMERS)
+STREAM_ORDERS = "orders"
+STREAM_ORDER_EVENTS = "order_events"
+STREAM_CUSTOMERS = "customers"
+STREAMS = (STREAM_ORDERS, STREAM_ORDER_EVENTS, STREAM_CUSTOMERS)
 
 
 @dataclass(frozen=True)

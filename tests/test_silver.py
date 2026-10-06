@@ -26,7 +26,7 @@ def lake(tmp_path, monkeypatch):
 
 
 def bronze(spark, payloads):
-    rows = [(None, p if isinstance(p, str) else json.dumps(p), "test", 0, i, None, None, None)
+    rows = [(p if isinstance(p, str) else json.dumps(p), "test", f"file-{i:03d}.json", None)
             for i, p in enumerate(payloads)]
     from pyspark.sql import functions as F
 
@@ -65,7 +65,7 @@ def test_order_rules_assign_the_first_failing_reason(spark):
         unknown,
         order("ORD-5", event_time="not-a-timestamp"),
     ]), SKUS)
-    reasons = [r.rejection_reason for r in df.orderBy("kafka_offset").collect()]
+    reasons = [r.rejection_reason for r in df.orderBy("source_file").collect()]
     assert reasons == [None, "malformed_json", "missing_customer_id", "invalid_quantity", "unknown_sku",
                        "invalid_event_time"]
 

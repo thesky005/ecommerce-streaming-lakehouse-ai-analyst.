@@ -4,7 +4,6 @@ name: ecommerce-lakehouse
 x-lake-env: &lake-env
   LAKE_ROOT: /opt/lake
   REFERENCE_DIR: /opt/project/reference_data
-  KAFKA_BOOTSTRAP_SERVERS: kafka:29092
   SPARK_SHUFFLE_PARTITIONS: "8"
 
 x-project-mounts: &project-mounts
@@ -54,84 +53,24 @@ x-airflow: &airflow
       condition: service_healthy
 
 services:
-  # Streaming backbone ---------------------------------------------------------
-  kafka:
-    image: ${KAFKA_IMAGE:-apache/kafka:3.9.0}
-    hostname: kafka
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${KAFKA_HOST_PORT:-9092}:9092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,HOST://127.0.0.1:${KAFKA_HOST_PORT:-9092}
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 12
-      start_period: 20s
-
-  kafka-init:
-    image: ${KAFKA_IMAGE:-apache/kafka:3.9.0}
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        for topic in orders order_events customers; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
-            --topic "$$topic" --partitions ${KAFKA_TOPIC_PARTITIONS:-3} --replication-factor 1
-        done
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe
-    restart: "no"
-
-  kafka-ui:
-    image: ghcr.io/kafbat/kafka-ui:latest
-    depends_on:
-      kafka-init:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:${KAFKA_UI_PORT:-8082}:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: ecommerce
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-    restart: unless-stopped
-
+  # Event generator: replays history, then writes live store events into the landing zone.
   event-generator:
     build:
       context: ..
       dockerfile: docker/generator/Dockerfile
     image: ecommerce-lakehouse-generator:local
-    depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+    user: "${AIRFLOW_UID:-50000}:0"
     environment:
-      GENERATOR_SINK: kafka
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      GENERATOR_LIVE: "true"
+      LANDING_DIR: /opt/lake/landing
       BACKFILL_DAYS: ${BACKFILL_DAYS:-30}
       LIVE_RATE_MULTIPLIER: ${LIVE_RATE_MULTIPLIER:-30}
-      GENERATOR_STATE_FILE: /state/generator.json
+      GENERATOR_STATE_FILE: /opt/lake/_generator_state.json
       PYTHONUNBUFFERED: "1"
     volumes:
-      - generator_state:/state
+      - ../lake:/opt/lake
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # Spark ------------------------------------------------------------------------
@@ -160,21 +99,19 @@ services:
       spark-master:
         condition: service_healthy
 
-  # Bronze: an always-on Structured Streaming job from Kafka into Delta.
+  # Bronze: an always-on Structured Streaming job from the landing zone into Delta.
   spark-streaming:
     <<: *spark
     hostname: spark-streaming
     command: >
       spark-submit --master local[2] --driver-memory 1g --name bronze_streaming
-      /opt/project/lakehouse/run.py bronze --source kafka
+      /opt/project/lakehouse/run.py bronze
     ports:
       - "127.0.0.1:${SPARK_STREAMING_UI_PORT:-4040}:4040"
     environment:
       <<: *lake-env
       BRONZE_TRIGGER_INTERVAL: ${BRONZE_TRIGGER_INTERVAL:-20 seconds}
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
       airflow-init:
         condition: service_completed_successfully
 
@@ -199,7 +136,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        mkdir -p /opt/lake /opt/airflow/logs
+        mkdir -p /opt/lake/landing /opt/airflow/logs
         chown -R "${AIRFLOW_UID:-50000}:0" /opt/lake /opt/airflow/logs
         /entrypoint airflow version
         /entrypoint airflow pools set spark 3 "Concurrent Spark applications on the cluster"
@@ -240,22 +177,23 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Department report --------------------------------------------------------------
-  report:
+  # Dashboard + AI analyst ------------------------------------------------------------
+  app:
     build:
       context: ..
-      dockerfile: docker/report/Dockerfile
-    image: ecommerce-lakehouse-report:local
+      dockerfile: docker/app/Dockerfile
+    image: ecommerce-lakehouse-app:local
     environment:
       LAKE_ROOT: /opt/lake
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
     volumes:
-      - ../lake:/opt/lake:ro
+      - ../lake:/opt/lake
     ports:
-      - "127.0.0.1:${REPORT_PORT:-8501}:8501"
+      - "127.0.0.1:${AI_SERVER_PORT:-8000}:8000"
     restart: unless-stopped
 
 volumes:
-  kafka_data:
   postgres_data:
   airflow_logs:
-  generator_state:

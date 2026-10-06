@@ -1,5 +1,5 @@
-<svg viewBox="0 0 1000 370" role="img" aria-label="Architecture: generator, Kafka, Spark Structured Streaming,
- Bronze, Silver with quarantine, quality gate, Gold and the department report; Airflow orchestrates Silver to Gold">
+<svg viewBox="0 0 1000 370" role="img" aria-label="Architecture: event generator, landing zone, Spark Structured Streaming,
+ Bronze, Silver with quarantine, quality gate, Gold and the dashboard with the AI analyst; Airflow orchestrates Silver to Gold">
   <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
     <path d="M0,0 L10,5 L0,10 z" fill="#898781"/></marker></defs>
   <rect class="airflow" x="560" y="22" width="420" height="262" rx="14"/>
@@ -11,8 +11,8 @@
   <path class="edge dashed" d="M630 140 V203"/>
   <g class="node"><rect x="10" y="70" width="110" height="70" rx="10"/>
     <text x="65" y="100">Event</text><text x="65" y="118">generator</text></g>
-  <g class="node kafka"><rect x="150" y="70" width="100" height="70" rx="10"/>
-    <text x="200" y="100">Kafka</text><text x="200" y="118" class="sub">3 topics</text></g>
+  <g class="node landing"><rect x="150" y="70" width="100" height="70" rx="10"/>
+    <text x="200" y="100">Landing zone</text><text x="200" y="118" class="sub">JSON event files</text></g>
   <g class="node spark"><rect x="280" y="70" width="115" height="70" rx="10"/>
     <text x="337" y="98">Spark</text><text x="337" y="115" class="sub">Structured</text>
     <text x="337" y="130" class="sub">Streaming</text></g>
@@ -27,5 +27,5 @@
   <g class="node quarantine"><rect x="575" y="205" width="110" height="60" rx="10"/>
     <text x="630" y="231">Quarantine</text><text x="630" y="249" class="sub">rejected + reason</text></g>
   <g class="node report"><rect x="835" y="305" width="130" height="58" rx="10"/>
-    <text x="900" y="330">Department</text><text x="900" y="348" class="sub">report · 7 pages</text></g>
+    <text x="900" y="330">Dashboard</text><text x="900" y="348" class="sub">+ AI analyst</text></g>
 </svg>

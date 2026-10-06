@@ -76,7 +76,7 @@ def run_checks(spark: SparkSession) -> list[CheckResult]:
     results.append(CheckResult("non_negative_order_value", "silver.orders", "error",
                                negative == 0, negative, 0, "order value after discount cannot be negative"))
 
-    bronze_rows = sum(spark.read.format("delta").load(config.bronze(t)).count() for t in config.TOPICS)
+    bronze_rows = sum(spark.read.format("delta").load(config.bronze(t)).count() for t in config.STREAMS)
     quarantined = spark.read.format("delta").load(s("quarantine")).count() if _exists(spark, s("quarantine")) else 0
     rate = quarantined / bronze_rows if bronze_rows else 0.0
     results.append(CheckResult("quarantine_rate", "silver.quarantine", "error", rate <= 0.05,
@@ -87,7 +87,7 @@ def run_checks(spark: SparkSession) -> list[CheckResult]:
     ages = [
         spark.read.format("delta").load(config.bronze(t))
         .agg((F.unix_timestamp(F.current_timestamp()) - F.unix_timestamp(F.max("ingested_at"))) / 60).first()[0]
-        for t in config.TOPICS
+        for t in config.STREAMS
     ]
     age = min((a for a in ages if a is not None), default=1e9)
     results.append(CheckResult("bronze_freshness_minutes", "bronze.*", "warn", age <= freshness_limit,

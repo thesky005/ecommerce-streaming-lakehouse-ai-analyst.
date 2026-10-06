@@ -103,4 +103,4 @@ if __name__ == "__main__":
 
     port = int(os.getenv("AI_SERVER_PORT", "8000"))
     print(f"Northstar Insights running at http://localhost:{port}")
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host=os.getenv("AI_SERVER_HOST", "127.0.0.1"), port=port, log_level="warning")
