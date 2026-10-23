@@ -5,8 +5,8 @@ A Python **event generator** simulates a live store: orders, customer updates an
 lifecycle (payments, shipments, deliveries, returns, reviews), including late-arriving, duplicate
 and deliberately broken records. **Spark Structured Streaming** ingests the events incrementally
 into a **Delta Lake** Bronze → Silver → Gold architecture, and **Airflow** orchestrates the Spark
-jobs every 10 minutes. The result feeds **Northstar Insights**, a decision dashboard for six
-departments with an **AI analyst** that answers business questions by querying the warehouse.
+jobs every 10 minutes. The result feeds **Northstar Insights**, a decision dashboard for five
+business departments with an **AI analyst** that answers business questions by querying the warehouse.
 
 ## Architecture
 
@@ -150,7 +150,7 @@ The model is any OpenAI-compatible endpoint, configured in `.env` (git-ignored; 
 ```text
 OPENROUTER_API_KEY=sk-or-...
 LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+LLM_MODEL=nvidia/nemotron-3.5-super-vl:free
 ```
 
 SQL safety: one SELECT statement per call (checked by DuckDB's parser), external file access
@@ -168,3 +168,5 @@ After a pipeline run, call `POST /api/reload` or restart the server.
   not as a file, and make sure `OPENROUTER_API_KEY` is set in `.env`.
 - **AI requests fail with rate-limit errors**: free models allow a limited number of requests per
   day; decision briefings are cached to save quota.
+- **AI requests fail with a provider 404**: the configured model may no longer be available. Check
+  the provider's model catalog, update `LLM_MODEL` in `.env`, and restart the server.

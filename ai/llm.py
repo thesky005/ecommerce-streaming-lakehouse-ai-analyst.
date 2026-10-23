@@ -5,7 +5,7 @@ endpoint or a local Ollama server is a configuration change:
 
     OPENROUTER_API_KEY=...   (or LLM_API_KEY)
     LLM_BASE_URL=https://openrouter.ai/api/v1
-    LLM_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+    LLM_MODEL=nvidia/nemotron-3.5-super-vl:free
 """
 import json
 import os
@@ -21,7 +21,7 @@ class LLMError(RuntimeError):
 class LLMClient:
     def __init__(self):
         self.base_url = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
-        self.model = os.getenv("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
+        self.model = os.getenv("LLM_MODEL", "nvidia/nemotron-3.5-super-vl:free")
         self.api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENROUTER_API_KEY", "")
         self.reasoning = os.getenv("LLM_REASONING", "true").lower() in ("1", "true", "yes")
         self.calls = 0

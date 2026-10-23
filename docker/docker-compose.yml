@@ -187,7 +187,7 @@ services:
       LAKE_ROOT: /opt/lake
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
-      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
+      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3.5-super-vl:free}
     volumes:
       - ../lake:/opt/lake
     ports:
